@@ -29,9 +29,13 @@ class Equipement:
         self.exterieur = exterieur 
 def charger_inventaire(chemin=CHEMIN_DEFAUT):
     """Charge le YAML et renvoie (sites, equipements)."""
-    with open(chemin, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-
+    try:
+        with open(chemin, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+    except FileNotFoundError:
+        raise ValueError(f"Fichier introuvable : {chemin}")
+    except yaml.YAMLError as err:
+        raise ValueError(f"Fichier YAML malformé : {err}")
     sites = {}
     for s in data["sites"]:
         sites[s["code"]] = Site(s["code"], s["nom"], s["latitude"], s["longitude"])
