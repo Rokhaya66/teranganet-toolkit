@@ -4,6 +4,7 @@ import argparse
 
 from teranganet.inventaire import charger_inventaire
 from teranganet.meteo import meteo_actuelle
+from teranganet.rapport import charger_seuils, evaluer_alertes
 
 
 def cmd_inventaire(args):
@@ -39,6 +40,32 @@ def cmd_show(args):
             print(f"  Exposé : {'oui' if eq.exterieur else 'non'}")
             return
     print(f"Erreur : aucun équipement nommé '{args.nom}' dans l'inventaire.")
+
+
+def cmd_audit(args):
+    """Croise l'inventaire et la météo pour lever des alertes."""
+    from datetime import datetime
+
+    sites, equipements = charger_inventaire()
+    seuils = charger_seuils()
+    horodatage = datetime.now().strftime("%Y-%m-%d %H:%M")
+    print(f"=== Audit TerangaNet — {horodatage} ===")
+
+    total_alertes = 0
+    for code, site in sites.items():
+        exterieurs = [e for e in equipements
+                      if e.site.code == code and e.exterieur]
+        m = meteo_actuelle(site.latitude, site.longitude)
+        alertes = evaluer_alertes(m["vent"], m["temperature"],
+                                  len(exterieurs) > 0, seuils)
+        total_alertes += len(alertes)
+        etat = " ".join(f"[{a}]" for a in alertes) if alertes else "OK"
+        print(f"{site}  vent {m['vent']} km/h  "
+              f"temp {m['temperature']} °C  {etat}")
+
+    nb_ext = len([e for e in equipements if e.exterieur])
+    print(f"\nBilan : {total_alertes} alertes sur {len(sites)} sites. "
+          f"Équipements extérieurs exposés au vent : {nb_ext}.")
 def main():
     """Construit l'analyseur d'arguments et exécute la commande demandée."""
     parser = argparse.ArgumentParser(description="TerangaNet Ops Toolkit")
@@ -52,6 +79,8 @@ def main():
     p_show = sous.add_parser("show", help="Détailler un équipement")
     p_show.add_argument("nom", help="Nom de l'équipement")
     p_show.set_defaults(fonction=cmd_show)
+    p_aud = sous.add_parser("audit", help="Croiser inventaire et météo")
+    p_aud.set_defaults(fonction=cmd_audit)
 
     args = parser.parse_args()
     try:
